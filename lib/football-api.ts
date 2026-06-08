@@ -5,17 +5,27 @@ interface Cache {
   fetchedAt: number | null;
 }
 
-const CACHE_TTL = 300_000; // 5 minutes
+const CACHE_TTL_DEFAULT = 60_000;  // 60 seconds normally
+const CACHE_TTL_LIVE    = 30_000;  // 30 seconds when a match is in progress
 
 const cache: Cache = {
   data: null,
   fetchedAt: null,
 };
 
+function isLiveMatch(m: Match): boolean {
+  return m.status === 'IN_PLAY' || m.status === 'PAUSED';
+}
+
+function currentTTL(): number {
+  if (cache.data && cache.data.some(isLiveMatch)) return CACHE_TTL_LIVE;
+  return CACHE_TTL_DEFAULT;
+}
+
 export async function getMatches(): Promise<Match[]> {
   const now = Date.now();
 
-  if (cache.data && cache.fetchedAt && now - cache.fetchedAt < CACHE_TTL) {
+  if (cache.data && cache.fetchedAt && now - cache.fetchedAt < currentTTL()) {
     return cache.data;
   }
 
@@ -31,8 +41,7 @@ export async function getMatches(): Promise<Match[]> {
   try {
     const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': apiKey },
-      // Next.js cache: revalidate every 5 minutes
-      next: { revalidate: 300 },
+      next: { revalidate: 0 }, // no Next.js cache — we manage TTL ourselves
     });
 
     if (!res.ok) {

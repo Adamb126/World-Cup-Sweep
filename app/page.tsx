@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { StandingsResponse, Match, StandingsRow } from '@/lib/types';
 
-const POLL_INTERVAL = 3 * 60 * 1000; // 3 minutes
+const POLL_INTERVAL_DEFAULT = 60_000;  // 60 seconds normally
+const POLL_INTERVAL_LIVE    = 30_000;  // 30 seconds when a match is live
 
 function formatTimeAgo(dateStr: string | null): string {
   if (!dateStr) return 'never';
@@ -167,11 +168,20 @@ export default function Home() {
     }
   }, []);
 
+  // Adaptive polling: fast when a match is live, slower otherwise
+  const hasLiveMatch = data?.matches.some(
+    m => m.status === 'IN_PLAY' || m.status === 'PAUSED'
+  ) ?? false;
+  const pollInterval = hasLiveMatch ? POLL_INTERVAL_LIVE : POLL_INTERVAL_DEFAULT;
+
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, POLL_INTERVAL);
-    return () => clearInterval(interval);
   }, [fetchData]);
+
+  useEffect(() => {
+    const interval = setInterval(fetchData, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchData, pollInterval]);
 
   // Update "X minutes ago" every minute
   useEffect(() => {
