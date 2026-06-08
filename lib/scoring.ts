@@ -37,9 +37,12 @@ const STAGE_MILESTONE: Record<string, number> = {
 
 // Team name aliases: our config name → possible API names (all lowercased)
 const TEAM_ALIASES: Record<string, string[]> = {
-  'usa': ['united states', 'usa', 'us'],
-  'czechia': ['czech republic', 'czechia'],
-  'bosnia and herzegovina': ['bosnia-herzegovina', 'bosnia & herzegovina', 'bosnia and herzegovina'],
+  'usa':                      ['united states', 'united states of america', 'usa', 'us'],
+  'czechia':                  ['czech republic', 'czechia'],
+  'bosnia and herzegovina':   ['bosnia-herzegovina', 'bosnia & herzegovina', 'bosnia and herzegovina'],
+  'south korea':              ['korea republic', 'republic of korea', 'south korea'],
+  'iran':                     ['ir iran', 'iran'],
+  'ivory coast':              ["côte d'ivoire", 'ivory coast'],
 };
 
 function normalizeTeamName(name: string): string {
