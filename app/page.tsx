@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import type { StandingsResponse, Match } from '@/lib/types';
+import type { StandingsResponse, Match, StandingsRow } from '@/lib/types';
 
 const POLL_INTERVAL = 3 * 60 * 1000; // 3 minutes
 
@@ -44,6 +44,65 @@ function MatchStatusBadge({ status }: { status: string }) {
     );
   }
   return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">{status === 'TIMED' ? 'Soon' : 'Sched.'}</span>;
+}
+
+// Human-readable labels for each bonus/base point type
+const POINT_TYPE_LABELS: Record<string, string> = {
+  WIN:              'Match win',
+  DRAW:             'Draw',
+  SCORED_3_PLUS:    'Scored 3+ goals',
+  CLEAN_SHEET:      'Clean sheet',
+  WIN_BY_3:         'Won by 3+ goals',
+  PENALTY_SHOOTOUT: 'Penalty shootout win',
+  COMEBACK_WIN:     'Comeback win',
+  LAST_MINUTE_WINNER: 'Last-minute winner',
+};
+
+function summariseBreakdown(row: StandingsRow): { label: string; pts: number }[] {
+  const totals = new Map<string, number>();
+
+  for (const mp of row.matchPoints) {
+    if (mp.basePoints > 0) {
+      const key = mp.basePoints === 1 ? 'DRAW' : 'WIN';
+      totals.set(key, (totals.get(key) ?? 0) + mp.basePoints);
+    }
+    for (const b of mp.bonuses) {
+      totals.set(b.type, (totals.get(b.type) ?? 0) + b.points);
+    }
+  }
+
+  if (row.milestonePoints > 0) {
+    totals.set('MILESTONE', row.milestonePoints);
+  }
+
+  return [...totals.entries()]
+    .map(([type, pts]) => ({
+      label: type === 'MILESTONE' ? 'Knockout stage milestones' : (POINT_TYPE_LABELS[type] ?? type),
+      pts,
+    }))
+    .sort((a, b) => b.pts - a.pts);
+}
+
+function PointsBreakdown({ row }: { row: StandingsRow }) {
+  const items = summariseBreakdown(row);
+  if (items.length === 0) {
+    return <p className="text-xs text-gray-400 italic px-4 pb-3">No points yet — tournament hasn&apos;t started.</p>;
+  }
+  return (
+    <div className="px-4 pb-3 pt-1">
+      <div className="flex flex-wrap gap-2">
+        {items.map(({ label, pts }) => (
+          <span
+            key={label}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100"
+          >
+            <span className="font-bold">+{pts}</span>
+            <span>{label}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function SkeletonRow() {
@@ -90,6 +149,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [now, setNow] = useState(new Date());
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -180,36 +240,50 @@ export default function Home() {
                 <tbody className="divide-y divide-gray-100">
                   {loading
                     ? Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} />)
-                    : data?.standings.map(row => (
-                        <tr key={row.participant.name} className={`transition-colors ${getRankStyle(row.rank)}`}>
-                          <td className="px-4 py-3 text-center w-12">
-                            {getRankBadge(row.rank)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-gray-900">{row.participant.name}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-1">
-                              {row.participant.teams.map(team => (
-                                <span
-                                  key={team}
-                                  className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                                >
-                                  {team}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right pr-6">
-                            <span className="text-lg font-bold text-gray-900">{row.points}</span>
-                            {row.milestonePoints > 0 && (
-                              <span className="ml-1 text-xs text-indigo-600 font-medium">
-                                (+{row.milestonePoints} milestone)
-                              </span>
+                    : data?.standings.map(row => {
+                        const isExpanded = expandedRow === row.participant.name;
+                        return (
+                          <>
+                            <tr
+                              key={row.participant.name}
+                              className={`transition-colors cursor-pointer hover:brightness-95 ${getRankStyle(row.rank)}`}
+                              onClick={() => setExpandedRow(isExpanded ? null : row.participant.name)}
+                            >
+                              <td className="px-4 py-3 text-center w-12">
+                                {getRankBadge(row.rank)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="font-semibold text-gray-900">{row.participant.name}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {row.participant.teams.map(team => (
+                                    <span
+                                      key={team}
+                                      className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                    >
+                                      {team}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right pr-4">
+                                <div className="flex items-center justify-end gap-2">
+                                  <span className="text-lg font-bold text-gray-900">{row.points} pts</span>
+                                  <span className="text-gray-400 text-sm">{isExpanded ? '▲' : '▼'}</span>
+                                </div>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr key={`${row.participant.name}-breakdown`} className={getRankStyle(row.rank)}>
+                                <td colSpan={4} className="pb-2">
+                                  <PointsBreakdown row={row} />
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                        </tr>
-                      ))}
+                          </>
+                        );
+                      })}
                 </tbody>
               </table>
             </div>
