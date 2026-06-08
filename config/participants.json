@@ -1,0 +1,21 @@
+[
+  { "name": "Adam", "teams": ["Portugal", "Australia"] },
+  { "name": "Bernie", "teams": ["England", "Egypt"] },
+  { "name": "Callum", "teams": ["Uruguay", "South Africa"] },
+  { "name": "Alannah", "teams": ["France", "Paraguay"] },
+  { "name": "Conor", "teams": ["Mexico", "Ghana"] },
+  { "name": "Debbie", "teams": ["Brazil", "Jordan"] },
+  { "name": "Thomas", "teams": ["Croatia", "Bosnia and Herzegovina"] },
+  { "name": "Matthew", "teams": ["Japan", "New Zealand"] },
+  { "name": "Myra", "teams": ["Morocco", "Scotland"] },
+  { "name": "Trish", "teams": ["Germany", "Panama"] },
+  { "name": "Oisin", "teams": ["USA", "Algeria"] },
+  { "name": "Isabel", "teams": ["Argentina", "Costa Rica"] },
+  { "name": "Jack", "teams": ["Sweden", "Iran"] },
+  { "name": "Pat", "teams": ["Spain", "Jamaica"] },
+  { "name": "Alex", "teams": ["Belgium", "South Korea"] },
+  { "name": "Andy", "teams": ["Canada", "Saudi Arabia"] },
+  { "name": "Ben", "teams": ["Netherlands", "Czechia"] },
+  { "name": "Liam", "teams": ["Switzerland", "Serbia"] },
+  { "name": "Samantha", "teams": ["Austria", "Qatar"] }
+]
