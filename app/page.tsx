@@ -1,65 +1,290 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import type { StandingsResponse, Match } from '@/lib/types';
+
+const POLL_INTERVAL = 3 * 60 * 1000; // 3 minutes
+
+function formatTimeAgo(dateStr: string | null): string {
+  if (!dateStr) return 'never';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins === 1) return '1 minute ago';
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours === 1) return '1 hour ago';
+  return `${hours} hours ago`;
+}
+
+function getRankStyle(rank: number): string {
+  if (rank === 1) return 'bg-yellow-50 border-l-4 border-yellow-400';
+  if (rank === 2) return 'bg-gray-50 border-l-4 border-gray-400';
+  if (rank === 3) return 'bg-orange-50 border-l-4 border-amber-600';
+  return '';
+}
+
+function getRankBadge(rank: number) {
+  if (rank === 1) return <span className="text-yellow-500 font-bold text-lg">🥇</span>;
+  if (rank === 2) return <span className="text-gray-400 font-bold text-lg">🥈</span>;
+  if (rank === 3) return <span className="text-amber-700 font-bold text-lg">🥉</span>;
+  return <span className="text-gray-600 font-semibold">{rank}</span>;
+}
+
+function MatchStatusBadge({ status }: { status: string }) {
+  if (status === 'FINISHED') {
+    return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">FT</span>;
+  }
+  if (status === 'IN_PLAY' || status === 'PAUSED') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-500 text-white animate-pulse">
+        <span className="w-1.5 h-1.5 rounded-full bg-white inline-block" />
+        LIVE
+      </span>
+    );
+  }
+  return <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">{status === 'TIMED' ? 'Soon' : 'Sched.'}</span>;
+}
+
+function SkeletonRow() {
+  return (
+    <tr className="animate-pulse">
+      <td className="px-4 py-3"><div className="h-4 w-6 bg-gray-200 rounded" /></td>
+      <td className="px-4 py-3"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+      <td className="px-4 py-3"><div className="h-4 w-32 bg-gray-200 rounded" /></td>
+      <td className="px-4 py-3"><div className="h-4 w-12 bg-gray-200 rounded" /></td>
+    </tr>
+  );
+}
+
+function groupMatchesByDate(matches: Match[]): Record<string, Match[]> {
+  const groups: Record<string, Match[]> = {};
+  for (const m of matches) {
+    const date = new Date(m.utcDate).toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(m);
+  }
+  return groups;
+}
+
+function getRecentMatches(matches: Match[]): Match[] {
+  const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+  const live = matches.filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
+  const recent = matches.filter(
+    m => m.status === 'FINISHED' && new Date(m.utcDate).getTime() >= threeDaysAgo
+  );
+  const upcoming = matches.filter(
+    m => (m.status === 'SCHEDULED' || m.status === 'TIMED') && new Date(m.utcDate).getTime() <= Date.now() + 24 * 60 * 60 * 1000
+  );
+
+  const combined = [...live, ...recent, ...upcoming];
+  const seen = new Set<number>();
+  return combined.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; })
+    .sort((a, b) => new Date(b.utcDate).getTime() - new Date(a.utcDate).getTime());
+}
 
 export default function Home() {
+  const [data, setData] = useState<StandingsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [now, setNow] = useState(new Date());
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/standings');
+      const json: StandingsResponse = await res.json();
+      setData(json);
+      setFetchedAt(new Date());
+    } catch (err) {
+      console.error('Failed to fetch standings:', err);
+      setData(prev => prev ? { ...prev, error: 'Failed to refresh data' } : {
+        standings: [], matches: [], lastUpdated: null, error: 'Failed to load data',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Update "X minutes ago" every minute
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const recentMatches = data ? getRecentMatches(data.matches) : [];
+  const matchGroups = groupMatchesByDate(recentMatches);
+
+  const timeAgo = fetchedAt
+    ? (() => {
+        const diff = now.getTime() - fetchedAt.getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins === 1) return '1 minute ago';
+        return `${mins} minutes ago`;
+      })()
+    : null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header style={{ backgroundColor: '#1a237e' }} className="text-white shadow-lg">
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-3">
+            <span className="text-4xl">⚽</span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight" style={{ color: '#ffd700' }}>
+                World Cup 2026 Sweepstake
+              </h1>
+              <p className="text-blue-200 text-sm mt-0.5">Live standings &amp; results</p>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 py-8 space-y-10">
+        {/* Error banner */}
+        {data?.error && (
+          <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-lg px-4 py-3 flex items-start gap-2">
+            <span className="text-yellow-500 mt-0.5">⚠</span>
+            <div>
+              <p className="font-medium">Data issue</p>
+              <p className="text-sm">{data.error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Standings */}
+        <section>
+          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <span>🏆</span> Standings
+          </h2>
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr style={{ backgroundColor: '#1a237e' }}>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider w-12">Rank</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Participant</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-blue-200 uppercase tracking-wider">Teams</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-blue-200 uppercase tracking-wider pr-6">Points</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {loading
+                    ? Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} />)
+                    : data?.standings.map(row => (
+                        <tr key={row.participant.name} className={`transition-colors ${getRankStyle(row.rank)}`}>
+                          <td className="px-4 py-3 text-center w-12">
+                            {getRankBadge(row.rank)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-semibold text-gray-900">{row.participant.name}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {row.participant.teams.map(team => (
+                                <span
+                                  key={team}
+                                  className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                >
+                                  {team}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right pr-6">
+                            <span className="text-lg font-bold text-gray-900">{row.points}</span>
+                            {row.milestonePoints > 0 && (
+                              <span className="ml-1 text-xs text-indigo-600 font-medium">
+                                (+{row.milestonePoints} milestone)
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Recent Matches */}
+        {recentMatches.length > 0 && (
+          <section>
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span>📅</span> Recent &amp; Live Matches
+            </h2>
+            <div className="space-y-6">
+              {Object.entries(matchGroups).map(([date, dayMatches]) => (
+                <div key={date}>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">{date}</h3>
+                  <div className="space-y-2">
+                    {dayMatches.map(match => (
+                      <div key={match.id} className="bg-white rounded-lg shadow-sm border border-gray-100 px-4 py-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {match.homeTeam.name}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {match.status === 'FINISHED' || match.status === 'IN_PLAY' || match.status === 'PAUSED' ? (
+                              <span className="text-lg font-bold text-gray-900 tabular-nums">
+                                {match.score.fullTime.home ?? 0} – {match.score.fullTime.away ?? 0}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400 font-medium">
+                                {new Date(match.utcDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            <MatchStatusBadge status={match.status} />
+                          </div>
+
+                          <div className="flex items-center gap-2 min-w-0 justify-end">
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {match.awayTeam.name}
+                            </span>
+                          </div>
+                        </div>
+
+                        {match.group && (
+                          <p className="text-xs text-gray-400 mt-1">{match.group.replace(/_/g, ' ')}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Footer */}
+      <footer className="mt-12 border-t border-gray-200 bg-white">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between text-xs text-gray-400">
+          <span>World Cup 2026 Sweepstake</span>
+          <span>
+            {timeAgo ? `Updated ${timeAgo}` : 'Loading...'}
+            {' · '}
+            <button
+              onClick={fetchData}
+              className="underline hover:text-gray-600 transition-colors"
+            >
+              Refresh
+            </button>
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# World Cup 2026 Sweepstake
 
-## Getting Started
+Live standings website for the World Cup 2026 sweepstake, built with Next.js, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## Setup
+
+### 1. Get a Football-Data.org API key
+
+1. Go to [football-data.org](https://www.football-data.org)
+2. Click **Client** → **Register**
+3. The free tier includes access to major competitions including the World Cup
+4. Copy your API key from the dashboard
+
+### 2. Run locally
 
 ```bash
+cp .env.example .env.local
+# Edit .env.local and replace "your_key_here" with your actual API key
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Edit participants
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `config/participants.json` and edit the array. Each entry must have:
 
-## Learn More
+```json
+{ "name": "PlayerName", "teams": ["Team1", "Team2"] }
+```
 
-To learn more about Next.js, take a look at the following resources:
+Team names should match how Football-Data.org spells them. Known aliases already handled:
+- `"USA"` -> mapped to `"United States"` in the API
+- `"Czechia"` -> mapped to `"Czech Republic"` in the API
+- `"Bosnia and Herzegovina"` -> mapped to `"Bosnia-Herzegovina"` in the API
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Deploy to Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push your code to a GitHub repository
+2. Go to [vercel.com](https://vercel.com) -> **New Project** -> Import from GitHub
+3. In **Environment Variables**, add:
+   - Key: `FOOTBALL_DATA_API_KEY`
+   - Value: your API key from step 1
+4. Click **Deploy**
 
-## Deploy on Vercel
+The site polls the API every 5 minutes (cached server-side) and the browser refreshes every 3 minutes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 5. Adjust scoring rules
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open `lib/scoring.ts` and edit the `SCORING` constants at the top of the file:
+
+```typescript
+export const SCORING = {
+  GROUP_WIN: 3,
+  GROUP_DRAW: 1,
+  // ... etc
+};
+```
+
+No other changes needed -- the rest of the code reads from these constants.
+
+## Scoring Rules
+
+### Group Stage (per match)
+- Team wins: **3 pts**
+- Team draws: **1 pt**
+- Team scores 3+ goals in a match: **+2 pts bonus**
+- Team keeps clean sheet: **+1 pt bonus**
+
+### Knockout Stage
+- Winning a match: **3 pts**
+- Win by 3+ goals: **+3 pts bonus**
+- Penalty shootout win: **+3 pts bonus**
+- Comeback win (was losing, won the match): **+5 pts bonus**
+- Last-minute winner (decisive goal at 85'+): **+2 pts bonus**
+
+### Milestones (awarded once per team)
+| Stage reached | Points awarded |
+|---|---|
+| Round of 16 | 5 pts |
+| Quarter Final | 10 pts |
+| Semi Final | 15 pts |
+| Final | 25 pts |
+| Win World Cup | 40 pts |
+
+Milestones are cumulative -- a team that reaches the Final earns 5+10+15+25 = 55 pts total in milestones, plus 40 for winning = 95 total milestone pts if they win.
