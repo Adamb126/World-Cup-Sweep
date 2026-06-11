@@ -41,7 +41,7 @@ export async function getMatches(): Promise<Match[]> {
   try {
     const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': apiKey },
-      next: { revalidate: 0 }, // no Next.js cache — we manage TTL ourselves
+      cache: 'no-store', // bypass Next.js fetch cache entirely — we manage freshness ourselves
     });
 
     if (!res.ok) {
