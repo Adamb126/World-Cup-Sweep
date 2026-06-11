@@ -154,7 +154,7 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/standings');
+      const res = await fetch(`/api/standings?t=${Date.now()}`);
       const json: StandingsResponse = await res.json();
       setData(json);
       setFetchedAt(new Date());
