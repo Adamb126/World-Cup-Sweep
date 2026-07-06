@@ -26,13 +26,37 @@ export const SCORING = {
   PENALTY_SHOOTOUT_WIN: 3,         // won via penalty shootout
 };
 
-// Maps stage string from Football-Data.org API to milestone value
+// Maps Football-Data.org stage strings to cumulative milestone totals.
+// WC 2026 has 48 teams so the bracket is: Group → LAST_32 → LAST_16 → QF → SF → Final
+// Football-Data.org uses LAST_32/LAST_16 naming — we cover both old and new conventions.
+//
+// Milestone values from the scoring poster:
+//   Playing in LAST_32  → "Reach Round of 16"  = 5 pts total
+//   Playing in LAST_16  → "Reach Quarter-Final" = 10 pts total
+//   Playing in QF       → "Reach Semi-Final"    = 15 pts total
+//   Playing in SF       → "Reach Final"         = 25 pts total
+//   Winning the FINAL   → "Win World Cup"       = 40 pts total  (handled separately)
 const STAGE_MILESTONE: Record<string, number> = {
-  ROUND_OF_16: SCORING.MILESTONE_ROUND_OF_16,
-  QUARTER_FINALS: SCORING.MILESTONE_QUARTER_FINAL,
-  SEMI_FINALS: SCORING.MILESTONE_SEMI_FINAL,
-  THIRD_PLACE: SCORING.MILESTONE_SEMI_FINAL,
-  FINAL: SCORING.MILESTONE_FINAL,
+  // Round of 32 (new in WC 2026) — "Reach Round of 16" on the poster
+  LAST_32:        SCORING.MILESTONE_ROUND_OF_16,   // 5 pts
+  ROUND_OF_32:    SCORING.MILESTONE_ROUND_OF_16,   // 5 pts (fallback name)
+
+  // Round of 16 — "Reach Quarter-Final" on the poster
+  LAST_16:        SCORING.MILESTONE_QUARTER_FINAL, // 10 pts
+  ROUND_OF_16:    SCORING.MILESTONE_QUARTER_FINAL, // 10 pts (fallback name)
+
+  // Quarter-finals — "Reach Semi-Final"
+  QUARTER_FINALS: SCORING.MILESTONE_SEMI_FINAL,    // 15 pts
+
+  // Semi-finals — "Reach Final"
+  SEMI_FINALS:    SCORING.MILESTONE_FINAL,          // 25 pts
+
+  // Third-place play-off — reached the semi-final so same as SF milestone
+  THIRD_PLACE:    SCORING.MILESTONE_FINAL,          // 25 pts
+
+  // Final — reaching it is worth 25 pts (already awarded via SF milestone above).
+  // Winning it is handled separately to award the full 40 pts.
+  FINAL:          SCORING.MILESTONE_FINAL,          // 25 pts (win bonus applied on top)
 };
 
 // Team name aliases: our config name → possible API names (all lowercased)
